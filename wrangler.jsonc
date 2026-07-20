@@ -1,0 +1,55 @@
+{
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"main": ".open-next/worker.js",
+	"name": "brainrotkit",
+	"compatibility_date": "2026-07-17",
+	"compatibility_flags": [
+		"nodejs_compat",
+		"global_fetch_strictly_public"
+	],
+	"assets": {
+		"directory": ".open-next/assets",
+		"binding": "ASSETS",
+		"html_handling": "drop-trailing-slash",
+		"run_worker_first": false
+	},
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "brainrotkit-db",
+			"database_id": "0361473e-7b6f-4dac-aed1-f13f469ae7ff",
+			"migrations_dir": "migrations"
+		}
+	],
+	"vars": {
+		"NEXT_PUBLIC_SITE_URL": "https://brainrotkit.com",
+		"NEXT_PUBLIC_ALLOW_INDEXING": "true",
+		"NEXT_PUBLIC_GA_MEASUREMENT_ID": "G-FCVZE5SEBD",
+		"CREEM_TEST_MODE": "false",
+		"SUPABASE_URL": "https://pdbekzquhfdhkligqwii.supabase.co",
+		"SUPABASE_STORAGE_BUCKET": "brainrotkit-media"
+	},
+	"routes": [
+		{
+			"pattern": "brainrotkit.com",
+			"custom_domain": true
+		},
+		{
+			"pattern": "www.brainrotkit.com",
+			"custom_domain": true
+		}
+	],
+	"services": [
+		{
+			// Self-reference service binding, the service name must match the worker name
+			// see https://opennext.js.org/cloudflare/caching
+			"binding": "WORKER_SELF_REFERENCE",
+			"service": "brainrotkit"
+		}
+	],
+	"images": {
+		// Enable image optimization
+		// see https://opennext.js.org/cloudflare/howtos/image
+		"binding": "IMAGES"
+	}
+}
