@@ -250,8 +250,8 @@ export function ToolForm({
   const sourcePlaceholder = kind === "video" && mode === "idea"
     ? "Describe the hook, story or character you want to turn into a short video..."
     : inputPlaceholder;
-  const submissionStage = submissionElapsed < 2 ? 0 : submissionElapsed < 9 ? 1 : 2;
-  const submissionSteps = ["Save source and settings", "Write the editable script", "Open the project editor"];
+  const submissionSteps = ["Save project", "Open editor"];
+  const submissionStage = submissionElapsed < 1 ? 0 : 1;
   const sampleKey = kind === "voice" ? "voice" : kind === "italian" ? "italian" : kind === "text" ? "text" : mode === "idea" ? "idea" : "video";
   const sampleText = sampleSources[sampleKey];
 
@@ -556,14 +556,14 @@ export function ToolForm({
 
       <button className="button-primary generate-button" type="submit" disabled={isSubmitting || fileStatus.state === "reading"} aria-busy={isSubmitting || fileStatus.state === "reading"}>
         {isSubmitting || fileStatus.state === "reading" ? <span className="button-thinking" aria-hidden="true"><i /><i /><i /></span> : <Sparkles aria-hidden="true" size={18} />}
-        {isSubmitting ? "Creating project" : fileStatus.state === "reading" ? "Reading PDF" : kind === "voice" ? "Create voice project" : "Create project"}
+        {isSubmitting ? "Opening editor" : fileStatus.state === "reading" ? "Reading PDF" : kind === "voice" ? "Create voice project" : "Create project"}
         <span>{creditEstimate}</span>
       </button>
       {isSubmitting ? (
         <div className="project-creation-status" role="status" aria-live="polite">
           <div className="project-creation-heading">
-            <div><span className="operation-pulse" aria-hidden="true"><i /><i /><i /></span><strong>Creating your project</strong></div>
-            <span>{submissionElapsed}s elapsed</span>
+            <div><span className="operation-pulse" aria-hidden="true"><i /><i /><i /></span><strong>Opening your editor</strong></div>
+            <span>{submissionElapsed}s</span>
           </div>
           <ol>
             {submissionSteps.map((step, index) => (
@@ -573,7 +573,7 @@ export function ToolForm({
               </li>
             ))}
           </ol>
-          <p>{submissionElapsed >= 12 ? "Still working. Keep this page open; the request has not been submitted twice." : "Your draft is safe. Keep this page open while the script is prepared."}</p>
+          <p>Script writing moved into the editor so you are not stuck on this page.</p>
         </div>
       ) : null}
       <p className="form-disclosure">

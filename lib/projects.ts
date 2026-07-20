@@ -170,6 +170,92 @@ function createVoiceScript(sourceText: string): BrainrotScript {
   };
 }
 
+/** Instant local draft so the user can open the editor without waiting on Kie. */
+function createQuickScript(input: {
+  type: ProjectType;
+  sourceText: string;
+  durationSeconds: number;
+  settings: ProjectSettings;
+}): BrainrotScript {
+  const cleaned = input.sourceText.replace(/\s+/g, " ").trim().slice(0, 4_000);
+  const format = defaultContentFormat(input.type, input.settings);
+  const sentences = cleaned
+    .split(/(?<=[.!?])\s+/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+  const chunks = (sentences.length ? sentences : [cleaned]).slice(0, Math.max(3, Math.min(8, Math.ceil(input.durationSeconds / 6))));
+  const title = cleaned.split(" ").slice(0, 7).join(" ") || "Untitled Brainrot";
+  const hook = chunks[0] || cleaned;
+  const narration = chunks.join(" ");
+
+  if (format === "debate") {
+    const speakers = [
+      { id: "speaker-nova", name: "Nova", role: "host" as const, voicePreset: "Milano Rush", captionColor: "#d1fe17" },
+      { id: "speaker-riff", name: "Riff", role: "challenger" as const, voicePreset: "Opera Max", captionColor: "#77d8ff" },
+    ];
+    const dialogue = chunks.map((text, index) => ({
+      id: `turn-${index + 1}`,
+      speakerId: speakers[index % 2].id,
+      text,
+      emotion: "neutral" as const,
+      sceneId: `scene-${Math.floor(index / 2) + 1}`,
+    }));
+    const sceneCount = Math.max(1, Math.ceil(chunks.length / 2));
+    const scenes = Array.from({ length: sceneCount }, (_, index) => {
+      const lines = chunks.slice(index * 2, index * 2 + 2);
+      return {
+        id: `scene-${index + 1}`,
+        label: `Beat ${index + 1}`,
+        narration: lines.join(" "),
+        imagePrompt: `Vertical short-form scene for: ${lines[0] || hook}. Original characters, no text overlays.`,
+        motionPrompt: "Subtle forward motion, continuous camera energy",
+      };
+    });
+    return normalizeBrainrotScript({
+      version: 2,
+      contentFormat: "debate",
+      title,
+      hook,
+      narration: dialogue.map((turn) => turn.text).join(" "),
+      voiceDirection: "Two distinct hosts trading short, punchy turns",
+      speakers,
+      dialogue,
+      scenes,
+    }, "debate");
+  }
+
+  const scenes = chunks.map((text, index) => ({
+    id: `scene-${index + 1}`,
+    label: format === "study" ? `Point ${index + 1}` : `Scene ${index + 1}`,
+    narration: text,
+    imagePrompt: `Vertical short-form visual for: ${text.slice(0, 160)}. Original composition, no captions or logos.`,
+    motionPrompt: format === "study" ? "Calm clarifying motion" : "Energetic continuous motion",
+  }));
+
+  return normalizeBrainrotScript({
+    version: 2,
+    contentFormat: format,
+    studyMode: format === "study" ? (typeof input.settings.studyMode === "string" ? input.settings.studyMode : "explain") : undefined,
+    title,
+    hook,
+    narration,
+    voiceDirection: format === "study"
+      ? "Clear teaching voice with short pauses"
+      : "Fast, clear short-form narration",
+    speakers: format === "study"
+      ? [{ id: "speaker-narrator", name: "Study Guide", role: "teacher", voicePreset: "Soft Study", captionColor: "#d1fe17" }]
+      : [{ id: "speaker-narrator", name: "Narrator", role: "narrator", voicePreset: "Milano Rush", captionColor: "#d1fe17" }],
+    dialogue: [{
+      id: "turn-1",
+      speakerId: "speaker-narrator",
+      text: narration,
+      emotion: "neutral",
+      sceneId: "scene-1",
+    }],
+    scenes,
+  }, format);
+}
+
 export async function createProject(input: {
   userId: string;
   type: ProjectType;
@@ -187,47 +273,20 @@ export async function createProject(input: {
   const id = crypto.randomUUID();
   const now = Date.now();
   const db = await getDatabase();
-  let script: BrainrotScript;
-  let completedScriptCall: { id: string; creditsConsumed: number } | null = null;
-  if (input.type === "voice") {
-    script = createVoiceScript(sourceText);
-  } else {
-    const [account, recentCalls] = await db.batch([
-      db.prepare(`SELECT plan FROM users WHERE id = ?`).bind(input.userId),
-      db.prepare(`SELECT COUNT(*) AS count FROM provider_calls WHERE user_id = ? AND kind = 'script' AND created_at >= ?`)
-        .bind(input.userId, now - 86_400_000),
-    ]) as [D1Result<{ plan: "free" | "creator" | "pro" }>, D1Result<{ count: number }>];
-    const dailyLimit = account.results[0]?.plan === "pro" ? 80 : account.results[0]?.plan === "creator" ? 30 : 6;
-    if (Number(recentCalls.results[0]?.count ?? 0) >= dailyLimit) {
-      throw new Error(`Daily script preparation limit reached (${dailyLimit} per account). Try again tomorrow or use a voice project.`);
-    }
-    const providerCallId = crypto.randomUUID();
-    await db.prepare(
-      `INSERT INTO provider_calls (
-        id, user_id, project_id, kind, provider, provider_model, status,
-        provider_credits, created_at
-      ) VALUES (?, ?, NULL, 'script', 'kie', ?, 'processing', 0, ?)`,
-    ).bind(providerCallId, input.userId, kieModels.script, now).run();
-    try {
-      const result = await generateBrainrotScript({
-        projectType: input.type,
-        sourceText,
-        durationSeconds: input.durationSeconds,
-        settings: input.settings,
-      });
-      script = result.script;
-      await db.prepare(
-        `UPDATE provider_calls SET status = 'completed', provider_credits = ?, completed_at = ? WHERE id = ?`,
-      ).bind(result.creditsConsumed, Date.now(), providerCallId).run();
-      completedScriptCall = { id: providerCallId, creditsConsumed: result.creditsConsumed };
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Script generation failed.";
-      await db.prepare(
-        `UPDATE provider_calls SET status = 'failed', error_message = ?, completed_at = ? WHERE id = ?`,
-      ).bind(message.slice(0, 500), Date.now(), providerCallId).run();
-      throw error;
-    }
-  }
+  // Open the editor immediately. AI script polish happens in the editor via prepareProjectScript.
+  const script = input.type === "voice"
+    ? createVoiceScript(sourceText)
+    : createQuickScript({
+      type: input.type,
+      sourceText,
+      durationSeconds: input.durationSeconds,
+      settings: input.settings,
+    });
+  const settings: ProjectSettings = {
+    ...input.settings,
+    scriptSource: input.type === "voice" ? "ready" : "provisional",
+  };
+
   await db.prepare(
     `INSERT INTO projects (
       id, user_id, type, title, status, source_text, source_file_name,
@@ -240,17 +299,84 @@ export async function createProject(input: {
     script.title,
     sourceText,
     input.sourceFileName?.slice(0, 240) ?? null,
-    JSON.stringify(input.settings),
+    JSON.stringify(settings),
     JSON.stringify(script),
     input.durationSeconds,
     now,
     now,
   ).run();
-  if (completedScriptCall) {
-    await db.prepare(`UPDATE provider_calls SET project_id = ? WHERE id = ?`)
-      .bind(id, completedScriptCall.id).run();
-  }
   return id;
+}
+
+/** Upgrade a provisional draft script with Kie AI after the user is already in the editor. */
+export async function prepareProjectScript(userId: string, projectId: string) {
+  const project = await getProject(userId, projectId);
+  if (!project) throw new Error("Project not found.");
+  if (project.type === "voice") return project;
+  if (project.status === "processing") throw new Error("Wait for the current generation job to finish first.");
+  if (project.settings.scriptSource === "ai" || project.settings.scriptSource === "ready") return project;
+
+  const now = Date.now();
+  const db = await getDatabase();
+  const [account, recentCalls] = await db.batch([
+    db.prepare(`SELECT plan FROM users WHERE id = ?`).bind(userId),
+    db.prepare(`SELECT COUNT(*) AS count FROM provider_calls WHERE user_id = ? AND kind = 'script' AND created_at >= ?`)
+      .bind(userId, now - 86_400_000),
+  ]) as [D1Result<{ plan: "free" | "creator" | "pro" }>, D1Result<{ count: number }>];
+  const dailyLimit = account.results[0]?.plan === "pro" ? 80 : account.results[0]?.plan === "creator" ? 30 : 6;
+  if (Number(recentCalls.results[0]?.count ?? 0) >= dailyLimit) {
+    // Keep the provisional script so the user can still edit and generate voice.
+    const settings: ProjectSettings = { ...project.settings, scriptSource: "ready" };
+    await db.prepare(`UPDATE projects SET settings_json = ?, updated_at = ? WHERE id = ? AND user_id = ?`)
+      .bind(JSON.stringify(settings), Date.now(), projectId, userId).run();
+    return (await getProject(userId, projectId)) ?? project;
+  }
+
+  const providerCallId = crypto.randomUUID();
+  await db.prepare(
+    `INSERT INTO provider_calls (
+      id, user_id, project_id, kind, provider, provider_model, status,
+      provider_credits, created_at
+    ) VALUES (?, ?, ?, 'script', 'kie', ?, 'processing', 0, ?)`,
+  ).bind(providerCallId, userId, projectId, kieModels.script, now).run();
+
+  try {
+    const result = await generateBrainrotScript({
+      projectType: project.type,
+      sourceText: project.sourceText,
+      durationSeconds: project.durationSeconds,
+      settings: project.settings,
+    });
+    const settings: ProjectSettings = {
+      ...project.settings,
+      scriptSource: "ai",
+    };
+    await db.batch([
+      db.prepare(
+        `UPDATE projects
+          SET title = ?, script_json = ?, settings_json = ?, updated_at = ?
+          WHERE id = ? AND user_id = ? AND status = 'draft'`,
+      ).bind(result.script.title, JSON.stringify(result.script), JSON.stringify(settings), Date.now(), projectId, userId),
+      db.prepare(
+        `UPDATE provider_calls SET status = 'completed', provider_credits = ?, completed_at = ? WHERE id = ?`,
+      ).bind(result.creditsConsumed, Date.now(), providerCallId),
+    ]);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Script generation failed.";
+    await db.batch([
+      db.prepare(
+        `UPDATE provider_calls SET status = 'failed', error_message = ?, completed_at = ? WHERE id = ?`,
+      ).bind(message.slice(0, 500), Date.now(), providerCallId),
+      db.prepare(
+        `UPDATE projects SET settings_json = ?, updated_at = ? WHERE id = ? AND user_id = ?`,
+      ).bind(JSON.stringify({ ...project.settings, scriptSource: "ready" }), Date.now(), projectId, userId),
+    ]);
+    // Leave provisional script in place so create → editor never dead-ends.
+  }
+
+  const refreshed = await getProject(userId, projectId);
+  if (!refreshed) throw new Error("Project not found.");
+  return refreshed;
 }
 
 export async function listProjects(userId: string) {

@@ -92,6 +92,9 @@ export function ProjectEditor({
     ?? (initialProject.status === "processing" ? initialProject.updatedAt : null);
   const [generationRequestedAt, setGenerationRequestedAt] = useState<number | null>(initialGenerationTime);
   const [clockNow, setClockNow] = useState(initialGenerationTime ?? 0);
+  const [scriptPreparing, setScriptPreparing] = useState(
+    initialProject.type !== "voice" && setting(initialProject.settings, "scriptSource", "") === "provisional",
+  );
   const mounted = useRef(false);
   const saveVersion = useRef(0);
 
@@ -140,14 +143,55 @@ export function ProjectEditor({
       mounted.current = true;
       return;
     }
-    if (project.status === "processing") return;
+    if (project.status === "processing" || scriptPreparing) return;
     const timer = window.setTimeout(() => {
       void saveProject().catch(() => undefined);
     }, 900);
     return () => window.clearTimeout(timer);
     // The editable fields intentionally define this save boundary.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [title, hook, narration, scenes, dialogue, speakerVoices, voicePreset, voiceSpeed, voiceIntensity, template, captionStyle, aspectRatio, renderMode, backgroundId]);
+  }, [title, hook, narration, scenes, dialogue, speakerVoices, voicePreset, voiceSpeed, voiceIntensity, template, captionStyle, aspectRatio, renderMode, backgroundId, scriptPreparing]);
+
+  useEffect(() => {
+    if (!scriptPreparing) return;
+    let cancelled = false;
+    async function prepareScript() {
+      setNoticeTone("info");
+      setNotice("Opening editor with a draft script. AI polish runs in the background…");
+      try {
+        const response = await fetch(`/api/projects/${encodeURIComponent(project.id)}/prepare-script`, {
+          method: "POST",
+        });
+        const payload = await response.json() as { project?: ProjectDetail; error?: string };
+        if (!response.ok || !payload.project) throw new Error(payload.error ?? "Script polish failed.");
+        if (cancelled) return;
+        const next = payload.project;
+        setProject(next);
+        setTitle(next.title);
+        setHook(next.script.hook);
+        setNarration(next.script.narration);
+        setScenes(next.script.scenes);
+        setDialogue(next.script.dialogue);
+        setSpeakerVoices(Object.fromEntries(next.script.speakers.map((speaker, index) => [
+          speaker.id,
+          index === 0 ? setting(next.settings, "voice", speaker.voicePreset) : setting(next.settings, `voice:${speaker.id}`, speaker.voicePreset),
+        ])));
+        setNoticeTone("success");
+        setNotice(next.settings.scriptSource === "ai"
+          ? "AI script is ready. Review the lines, then generate narration."
+          : "Draft script is ready. Edit freely, then generate narration.");
+      } catch {
+        if (!cancelled) {
+          setNoticeTone("info");
+          setNotice("Using the quick draft script. Edit freely, then generate narration.");
+        }
+      } finally {
+        if (!cancelled) setScriptPreparing(false);
+      }
+    }
+    void prepareScript();
+    return () => { cancelled = true; };
+  }, [project.id, scriptPreparing]);
 
   useEffect(() => {
     if (project.status !== "processing" && !requestPending) return;
@@ -265,6 +309,11 @@ export function ProjectEditor({
   }
 
   async function startGeneration() {
+    if (scriptPreparing) {
+      setNoticeTone("info");
+      setNotice("Wait a moment — the script is still being polished.");
+      return;
+    }
     setRequestPending(true);
     const requestedAt = Date.now();
     setGenerationRequestedAt(requestedAt);
@@ -428,6 +477,7 @@ export function ProjectEditor({
           <dl className="render-specs"><div><dt>Format</dt><dd>{outputFormat}</dd></div><div><dt>Duration</dt><dd>{project.durationSeconds} sec</dd></div><div><dt>Quality</dt><dd>{isVoice ? "Generated audio" : renderMode === "gameplay" ? `${outputDimensions} local export` : `480p source + ${outputDimensions} export`}</dd></div><div><dt>Cost</dt><dd>{confirmedCredits} credits</dd></div><div><dt>Balance</dt><dd>{displayedCredits} credits</dd></div></dl>
           <div className="render-progress"><p>Generation stages</p>{generationSteps.map((step, index) => { const state = step.status === "completed" ? "complete" : step.status === "failed" ? "failed" : ["submitted", "processing", "finalizing"].includes(step.status) ? "active" : "pending"; const voiceIndex = step.kind === "voice" ? generationSteps.slice(0, index + 1).filter((candidate) => candidate.kind === "voice").length - 1 : -1; const speaker = voiceIndex >= 0 ? project.script.speakers.find((candidate) => candidate.id === dialogue[voiceIndex]?.speakerId) : null; const label = step.kind === "voice" && plannedVoiceCount > 1 ? `Voice ${voiceIndex + 1}: ${speaker?.name ?? "Speaker"}` : stepLabel(step.kind); return <div className={state} key={`${step.kind}-${step.sequence}`}><span>{state === "complete" ? <Check aria-hidden="true" size={12} /> : index + 1}</span><div><strong>{label}{state === "active" && step.progress > 0 ? ` (${Math.round(step.progress)}%)` : ""}</strong><small>{stepActivity(step.kind, step.status)}</small></div></div>; })}</div>
 
+          {scriptPreparing ? <div className="generation-state-card processing" role="status"><strong>Polishing script in the background</strong><span>You are already in the editor. The draft is editable now; AI polish will replace it when ready.</span></div> : null}
           {requestPending ? <div className="generation-state-card processing" role="status"><strong>Submitting one generation job</strong><span>Saving your edits and reserving {confirmedCredits} credits. The button stays locked to prevent duplicate requests.</span></div> : null}
           {generationState === "processing" && !requestPending ? <div className="generation-state-card processing" role="status"><strong>{currentStepActivity}</strong><span>{formatElapsed(generationElapsed)} elapsed. You can return to Projects; the job continues safely in the background.</span></div> : null}
           {generationState === "failed" ? <div className="generation-state-card failed" role="alert"><strong>Generation failed</strong><span>{project.errorMessage ?? "Reserved BrainrotKit credits were returned. Review the project before retrying."}</span></div> : null}
@@ -437,7 +487,7 @@ export function ProjectEditor({
 
           {(generationState === "draft" || generationState === "failed") && missingCredits === 0 ? (
             <AlertDialog.Root>
-              <AlertDialog.Trigger asChild><button type="button" className="button-primary render-button" disabled={requestPending || saveState === "saving"}><Sparkles aria-hidden="true" size={17} /> {generationState === "failed" ? `Retry ${isVoice ? "audio" : "render"}` : renderLabel}<span>{confirmedCredits}</span></button></AlertDialog.Trigger>
+              <AlertDialog.Trigger asChild><button type="button" className="button-primary render-button" disabled={requestPending || saveState === "saving" || scriptPreparing}><Sparkles aria-hidden="true" size={17} /> {generationState === "failed" ? `Retry ${isVoice ? "audio" : "render"}` : renderLabel}<span>{confirmedCredits}</span></button></AlertDialog.Trigger>
               <AlertDialog.Portal><AlertDialog.Overlay className="dialog-overlay" /><AlertDialog.Content className="dialog-content"><AlertDialog.Title>{generationState === "failed" ? "Retry generation?" : `${renderLabel}?`}</AlertDialog.Title><AlertDialog.Description>This reserves {confirmedCredits} BrainrotKit credits. A system failure returns the reservation. Confirm once; the request will not be submitted twice.</AlertDialog.Description><div className="dialog-actions"><AlertDialog.Cancel asChild><button className="button-secondary" type="button">Keep editing</button></AlertDialog.Cancel><AlertDialog.Action asChild><button className="button-primary" type="button" onClick={() => void startGeneration()}>Confirm once</button></AlertDialog.Action></div></AlertDialog.Content></AlertDialog.Portal>
             </AlertDialog.Root>
           ) : null}
