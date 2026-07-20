@@ -22,6 +22,12 @@ npm run seo:check
 npm run frontend:audit
 ```
 
+## Cloudflare deployment
+
+For Cloudflare Workers Builds, use `npm run build:cloudflare` as the build command and `npx opennextjs-cloudflare deploy` as the deploy command. Alternatively, use `npm run deploy` as one combined command.
+
+Do not use `npm run build` as the OpenNext build command. It runs the regular Next.js build that OpenNext calls internally; the OpenNext adapter must run separately to create `.open-next/worker.js`.
+
 ## Implemented routes
 
 Public tool and commercial pages:

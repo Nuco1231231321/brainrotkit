@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "build": "next build",
+    "build:cloudflare": "opennextjs-cloudflare build && node scripts/copy-static-pages.mjs",
     "dev": "next dev",
     "start": "next start",
     "lint": "eslint .",
@@ -12,9 +13,9 @@
     "test:script": "node scripts/validate-brainrot-script.mjs",
     "seo:check": "node scripts/validate-seo-content.mjs",
     "frontend:audit": "node scripts/audit-frontend.mjs",
-    "preview": "opennextjs-cloudflare build && node scripts/copy-static-pages.mjs && opennextjs-cloudflare preview",
-    "deploy": "opennextjs-cloudflare build && node scripts/copy-static-pages.mjs && opennextjs-cloudflare deploy",
-    "upload": "opennextjs-cloudflare build && node scripts/copy-static-pages.mjs && opennextjs-cloudflare upload",
+    "preview": "npm run build:cloudflare && opennextjs-cloudflare preview",
+    "deploy": "npm run build:cloudflare && opennextjs-cloudflare deploy",
+    "upload": "npm run build:cloudflare && opennextjs-cloudflare upload",
     "cf-typegen": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts",
     "db:migrate:local": "wrangler d1 migrations apply DB --local",
     "db:migrate:remote": "wrangler d1 migrations apply DB --remote"
