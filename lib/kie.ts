@@ -18,7 +18,7 @@ export const kieModels = {
   script: "gpt-5-6-luna",
   image: "seedream/5-pro-text-to-image",
   voice: "google/gemini-2-5-pro-tts",
-  video: "grok-imagine-video-1-5-preview",
+  video: "kling/v3-turbo-image-to-video",
 } as const;
 
 type KieEnvironment = CloudflareEnv & {

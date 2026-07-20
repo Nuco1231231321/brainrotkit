@@ -126,16 +126,18 @@ function buildVoiceInput(project: ProjectDetail, turn = project.script.dialogue[
 }
 
 function buildVideoBaseInput(project: ProjectDetail) {
-  return {
-    prompt: [
+  const prompt = [
       project.script.hook,
       ...project.script.scenes.map((scene, index) => `Shot ${index + 1}: ${scene.motionPrompt} Narration context only: ${scene.narration}`),
       `Create one coherent vertical social video with a ${textSetting(project.settings, "template", "Parkour")} visual treatment and clean cinematic cuts between the shots. Preserve the reference character design and match the motion to the narration context. Do not render the narration as text or speech. No captions, logos, watermarks, dialogue, or voiceover; the final browser compositor adds the approved narration and deterministic subtitles.`,
-    ].join(" ").slice(0, 4_000),
-    resolution: "480p",
-    aspect_ratio: textSetting(project.settings, "aspectRatio", "9:16"),
-    duration: project.durationSeconds,
-    nsfw_checker: true,
+    ].join(" ").slice(0, 2_500);
+
+  return {
+    prompt,
+    // Kling V3 uses the reference image dimensions for the output aspect ratio.
+    // The app always supplies a 9:16 reference image for AI Motion projects.
+    duration: String(project.durationSeconds),
+    resolution: "720p",
   };
 }
 
