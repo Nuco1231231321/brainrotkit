@@ -217,8 +217,8 @@ export function drawGameplayFrame(
 ) {
   const normalized = normalizeGameplayBackgroundId(backgroundId);
   context.save();
-  if (normalized === "night-drive") drawNightDrive(context, elapsed, width, height);
-  else if (normalized === "marble-flow") drawMarbleFlow(context, elapsed, width, height);
+  if (["arena-fps", "arena-fps-extended", "containment-lab"].includes(normalized)) drawNightDrive(context, elapsed, width, height);
+  else if (normalized === "physics-lab") drawMarbleFlow(context, elapsed, width, height);
   else drawVoxelRush(context, elapsed, width, height);
   context.restore();
 }

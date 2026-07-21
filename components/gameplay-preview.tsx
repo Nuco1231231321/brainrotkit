@@ -9,11 +9,15 @@ export function GameplayPreview({
   caption = "Your story starts here",
   compact = false,
   showCaption = true,
+  videoSrc = null,
+  startOffsetSeconds = 0,
 }: {
   backgroundId: GameplayBackgroundId | string;
   caption?: string;
   compact?: boolean;
   showCaption?: boolean;
+  videoSrc?: string | null;
+  startOffsetSeconds?: number;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -29,8 +33,9 @@ export function GameplayPreview({
     const observer = new IntersectionObserver(([entry]) => { visible = entry.isIntersecting; }, { threshold: 0.05 });
     observer.observe(canvas);
     const startedAt = performance.now();
-    const loopSrc = getGameplayBackground(backgroundId).videoSrc;
+    const loopSrc = videoSrc || getGameplayBackground(backgroundId).videoSrc;
     let video = videoRef.current;
+    let applyStartOffset: (() => void) | null = null;
     if (loopSrc) {
       if (!video) {
         video = document.createElement("video");
@@ -44,6 +49,13 @@ export function GameplayPreview({
       if (video.src !== new URL(loopSrc, window.location.origin).href) {
         video.src = loopSrc;
       }
+      applyStartOffset = () => {
+        if (!video || !Number.isFinite(video.duration) || video.duration <= 0) return;
+        const offset = Math.min(Math.max(0, startOffsetSeconds), Math.max(0, video.duration - 0.1));
+        if (offset > 0) video.currentTime = offset;
+      };
+      video.addEventListener("loadedmetadata", applyStartOffset, { once: true });
+      if (video.readyState >= 1) applyStartOffset();
       void video.play().catch(() => undefined);
     } else if (video) {
       video.pause();
@@ -99,9 +111,10 @@ export function GameplayPreview({
     return () => {
       observer.disconnect();
       window.cancelAnimationFrame(frame);
+      if (video && applyStartOffset) video.removeEventListener("loadedmetadata", applyStartOffset);
       video?.pause();
     };
-  }, [backgroundId, caption, compact, showCaption]);
+  }, [backgroundId, caption, compact, showCaption, startOffsetSeconds, videoSrc]);
 
   return <canvas ref={canvasRef} className={compact ? "gameplay-preview compact" : "gameplay-preview"} width={360} height={640} role="img" aria-label="Animated gameplay background preview" />;
 }

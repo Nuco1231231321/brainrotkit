@@ -288,15 +288,16 @@ function drawComposedFrame(
     captionWords: CaptionWord[];
     motionVideo: HTMLVideoElement | null;
     loopVideo: HTMLVideoElement | null;
+    loopStartOffsetSeconds: number;
     poster: HTMLImageElement | null;
   },
 ) {
-  const { elapsed, width, height, backgroundId, captionStyle, captionWords, motionVideo, loopVideo, poster } = options;
+  const { elapsed, width, height, backgroundId, captionStyle, captionWords, motionVideo, loopVideo, loopStartOffsetSeconds, poster } = options;
   if (motionVideo && motionVideo.readyState >= 2) {
     drawCover(context, motionVideo, 0, 0, width, height);
   } else if (loopVideo && loopVideo.readyState >= 2) {
     if (loopVideo.duration && Number.isFinite(loopVideo.duration) && loopVideo.duration > 0) {
-      const t = elapsed % loopVideo.duration;
+      const t = (loopStartOffsetSeconds + elapsed) % loopVideo.duration;
       if (Math.abs(loopVideo.currentTime - t) > 0.08) {
         try { loopVideo.currentTime = t; } catch { /* seek may fail mid-decode */ }
       }
@@ -334,6 +335,7 @@ export function VideoComposer({
   onProjectSaved,
   autoStart = false,
   loopVideoUrl = null,
+  loopStartOffsetSeconds = 0,
 }: {
   projectId: string;
   title: string;
@@ -349,6 +351,7 @@ export function VideoComposer({
   onProjectSaved: (project: ProjectDetail) => void;
   autoStart?: boolean;
   loopVideoUrl?: string | null;
+  loopStartOffsetSeconds?: number;
 }) {
   const [state, setState] = useState<ExportState>("idle");
   const [progress, setProgress] = useState(0);
@@ -442,6 +445,7 @@ export function VideoComposer({
       : (loopVideoUrl || getGameplayBackground(backgroundId).videoSrc);
     const loopVideo = !motionSource && loopSource ? document.createElement("video") : null;
     if (loopVideo && loopSource) {
+      loopVideo.crossOrigin = "anonymous";
       loopVideo.src = loopSource;
       loopVideo.muted = true;
       loopVideo.loop = true;
@@ -496,7 +500,7 @@ export function VideoComposer({
         try { motionVideo.currentTime = 0; await motionVideo.play(); } catch { /* optional */ }
       }
       if (loopVideo) {
-        try { loopVideo.currentTime = 0; await loopVideo.play(); } catch { /* optional */ }
+        try { loopVideo.currentTime = loopStartOffsetSeconds; await loopVideo.play(); } catch { /* optional */ }
       }
 
       const frameRate = 30;
@@ -512,6 +516,7 @@ export function VideoComposer({
           captionWords,
           motionVideo,
           loopVideo,
+          loopStartOffsetSeconds,
           poster: image,
         });
         const preview = previewRef.current?.getContext("2d");

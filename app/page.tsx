@@ -5,7 +5,6 @@ import { FAQSection } from "@/components/faq-section";
 import { HomeSeoContent, homeFaqs } from "@/components/home-seo-content";
 import { JsonLd } from "@/components/json-ld";
 import { MediaGallery } from "@/components/media-gallery";
-import { ToolWorkspace } from "@/components/tool-workspace";
 import { pageMetadata } from "@/lib/metadata";
 import { mediaAssets } from "@/lib/media";
 import { siteConfig } from "@/lib/site";
@@ -30,10 +29,13 @@ export default function HomePage() {
         <div className="home-hero-copy">
           <p className="eyebrow">Create · remix · publish</p>
           <h1>AI Brainrot Video Generator</h1>
-          <p>Paste a script, upload a PDF or describe an idea. Get a vertical video with an editable hook, scenes and generated voice.</p>
+          <p className="home-hero-description">Paste a script, upload a PDF or describe an idea. Get a vertical video with an editable hook, scenes and generated voice.</p>
+          <div className="home-hero-actions">
+            <Link href="/create" className="button-primary home-create-cta">Create a video <ArrowRight aria-hidden="true" size={18} /></Link>
+          </div>
         </div>
         <div className="home-media-rail" aria-label="Example output directions">
-          {mediaAssets.slice(0, 3).map((asset, index) => (
+          {mediaAssets.filter((asset) => asset.src.startsWith("/showcase/")).map((asset, index) => (
             <div className={index === 0 ? "featured" : undefined} key={asset.id}>
               <Image src={asset.src} alt={asset.alt} fill sizes="(max-width: 520px) 50vw, 24vw" unoptimized />
               <span>{asset.title}</span>
@@ -41,17 +43,6 @@ export default function HomePage() {
           ))}
         </div>
       </section>
-
-      <ToolWorkspace
-        config={{
-          kind: "video",
-          slug: "home",
-          inputLabel: "Prompt or source text",
-          inputPlaceholder: "Explain your idea, paste a story or switch to PDF...",
-          estimatedCredits: 10,
-          outputLabel: "Editable 9:16 Brainrot video",
-        }}
-      />
 
       <section className="shortcut-section page-shell" aria-labelledby="create-mode-heading">
         <div className="section-heading lime">

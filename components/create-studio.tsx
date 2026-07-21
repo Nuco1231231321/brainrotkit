@@ -1,14 +1,17 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   Check,
-  Clapperboard,
+  FileText,
+  Gamepad2,
   LoaderCircle,
+  Mic2,
   Pause,
   Play,
-  Type,
+  UserRound,
   WandSparkles,
 } from "lucide-react";
 import { requestAuthDialog } from "@/components/auth-dialog";
@@ -72,9 +75,10 @@ export function CreateStudio() {
     () => studioCharacters.filter((host) => selectedHostIds.includes(host.id)).slice(0, 2),
     [selectedHostIds],
   );
-  const [topic, setTopic] = useState("why people open ten tabs instead of finishing one hard task");
-  const [script, setScript] = useState(() => localScriptFromTopic("why people open ten tabs instead of finishing one hard task", "debate", studioCharacters.slice(0, 2)));
+  const [script, setScript] = useState("Why do people open ten tabs instead of finishing the one task that would actually move their life forward?");
   const [duration, setDuration] = useState(15);
+  const [aspectRatio, setAspectRatio] = useState("9:16");
+  const [captionStyle, setCaptionStyle] = useState("TikTok Classic");
   const [playingVoiceId, setPlayingVoiceId] = useState<string | null>(null);
   const [scriptBusy, setScriptBusy] = useState(false);
   const [exportBusy, setExportBusy] = useState(false);
@@ -83,11 +87,6 @@ export function CreateStudio() {
   const [charOffset, setCharOffset] = useState({ x: 0, y: 0 });
   const [captionOffset, setCaptionOffset] = useState({ x: 0, y: 0 });
   const dragRef = useRef<{ target: "char" | "caption"; startX: number; startY: number; originX: number; originY: number } | null>(null);
-
-  useEffect(() => {
-    const next = clipsForFamily(family)[0];
-    if (next) setClipId(next.id);
-  }, [family]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -146,6 +145,12 @@ export function CreateStudio() {
     });
   }
 
+  function selectFamily(nextFamily: GameFamily) {
+    setFamily(nextFamily);
+    const firstClip = clipsForFamily(nextFamily)[0];
+    if (firstClip) setClipId(firstClip.id);
+  }
+
   async function generateScriptWithAi() {
     setScriptBusy(true);
     setNotice("");
@@ -154,7 +159,7 @@ export function CreateStudio() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          sourceText: topic,
+          sourceText: script,
           durationSeconds: duration,
           contentFormat: mode,
           projectType: "text",
@@ -164,7 +169,7 @@ export function CreateStudio() {
       if (response.status === 401) {
         requestAuthDialog({ returnTo: "/create", hasDraft: true });
         setNotice("Sign in to use AI script generation. A local draft is still available.");
-        setScript(localScriptFromTopic(topic, mode, hosts));
+        setScript(localScriptFromTopic(script, mode, hosts));
         return;
       }
       const payload = await response.json() as {
@@ -183,7 +188,7 @@ export function CreateStudio() {
       }
       setNotice("AI script ready. Edit any line before export.");
     } catch (error) {
-      setScript(localScriptFromTopic(topic, mode, hosts));
+      setScript(localScriptFromTopic(script, mode, hosts));
       setNotice(error instanceof Error ? error.message : "Fell back to a local draft script.");
     } finally {
       setScriptBusy(false);
@@ -215,8 +220,8 @@ export function CreateStudio() {
             template: "Gameplay",
             voice: hosts[0]?.voicePreset ?? "Milano Rush",
             tone: "Fast-paced",
-            aspectRatio: "9:16",
-            captionStyle: "TikTok Classic",
+            aspectRatio,
+            captionStyle,
             goal: "TikTok",
             scriptSource: "provisional",
           },
@@ -269,69 +274,76 @@ export function CreateStudio() {
   const activeLine = lines[captionIndex] ?? lines[0];
 
   return (
-    <main id="main-content" className="create-studio">
-      <header className="create-studio-hero page-shell">
-        <div>
-          <p className="eyebrow">Core video path</p>
-          <h1>Create</h1>
-          <p>Pick a legal gameplay loop, original hosts, write or AI-generate a script, preview live, then export.</p>
-        </div>
-        <div className="create-studio-hero-meta">
-          <span>Fixed game assets</span>
-          <span>Voice preview</span>
-          <span>Live preview</span>
-          <span>Browser export</span>
-        </div>
+    <main id="main-content" className="create-studio create-v2">
+      <header className="create-v2-header page-shell">
+        <h1>Create a new video</h1>
+        <p>Write or generate a script, choose the gameplay and voices, then open the editor.</p>
+        <nav className="create-tool-tabs" aria-label="Creation tools">
+          <Link href="/create" className="active" aria-current="page"><Gamepad2 aria-hidden="true" size={16} /> Gameplay video</Link>
+          <Link href="/pdf-to-brainrot"><FileText aria-hidden="true" size={16} /> PDF to video</Link>
+          <Link href="/italian-brainrot-generator"><UserRound aria-hidden="true" size={16} /> Character video</Link>
+          <Link href="/italian-brainrot-voice-generator"><Mic2 aria-hidden="true" size={16} /> Voice</Link>
+        </nav>
       </header>
 
-      <div className="create-studio-layout page-shell">
-        <section className="create-studio-controls" aria-label="Create controls">
-          <div className="create-studio-block">
-            <div className="create-studio-block-title">
-              <strong>1. Game family</strong>
-              <small>Open-source style packs — not Minecraft / GTA / Subway Surfers rips</small>
+      <div className="create-v2-workspace page-shell">
+        <section className="create-v2-form" aria-label="Video settings">
+        <section className="create-v2-product-row" aria-label="Selected workflow">
+          <div>
+            <Gamepad2 aria-hidden="true" size={19} />
+            <span><strong>Gameplay video</strong><small>Real gameplay, editable script, generated voices and captions.</small></span>
+          </div>
+          <div className="create-v2-orientation" role="group" aria-label="Aspect ratio">
+            <button type="button" aria-pressed={aspectRatio === "9:16"} className={aspectRatio === "9:16" ? "active" : undefined} onClick={() => setAspectRatio("9:16")}>Portrait</button>
+            <button type="button" aria-pressed={aspectRatio === "16:9"} className={aspectRatio === "16:9" ? "active" : undefined} onClick={() => setAspectRatio("16:9")}>Landscape</button>
+            <button type="button" aria-pressed={aspectRatio === "1:1"} className={aspectRatio === "1:1" ? "active" : undefined} onClick={() => setAspectRatio("1:1")}>Square</button>
+          </div>
+        </section>
+
+        <section className="create-v2-script" aria-labelledby="create-script-title">
+          <header>
+            <div><h2 id="create-script-title">Script</h2><p>Write your script or use AI to expand an idea.</p></div>
+            <button type="button" className="create-v2-ai-button" disabled={scriptBusy} onClick={() => void generateScriptWithAi()}>
+              {scriptBusy ? <LoaderCircle className="spin" size={16} /> : <WandSparkles aria-hidden="true" size={16} />}
+              {scriptBusy ? "Writing" : "AI script writer"}
+            </button>
+          </header>
+          <textarea
+            value={script}
+            maxLength={4_000}
+            onChange={(event) => setScript(event.target.value)}
+            rows={9}
+            placeholder={mode === "debate" ? "Write an idea, or format dialogue as Nova: line / Riff: line" : "Write or paste your script here…"}
+          />
+          <div className="create-v2-script-meta"><span>{script.length.toLocaleString()} / 4,000</span><span>Editable again before voice generation</span></div>
+        </section>
+
+        <h2 className="create-v2-customize-title">Customize options</h2>
+        <div className="create-v2-options">
+          <section className="create-v2-option-section" aria-labelledby="gameplay-option-title">
+            <div className="create-v2-section-heading">
+              <div><h3 id="gameplay-option-title">Choose gameplay</h3><p>Pick a category, then a licensed clip of at least one minute.</p></div>
+              <span>{familyClips.length} available</span>
             </div>
             <div className="segmented-control create-family-tabs" role="tablist" aria-label="Game family">
               {gameFamilies.map((item) => (
-                <button
-                  key={item.id}
-                  type="button"
-                  role="tab"
-                  aria-selected={family === item.id}
-                  className={family === item.id ? "active" : undefined}
-                  onClick={() => setFamily(item.id)}
-                >
+                <button key={item.id} type="button" role="tab" aria-selected={family === item.id} className={family === item.id ? "active" : undefined} onClick={() => selectFamily(item.id)}>
                   {item.label}
                 </button>
               ))}
             </div>
-            <p className="create-studio-hint">{gameFamilies.find((item) => item.id === family)?.hint}</p>
-          </div>
-
-          <div className="create-studio-block">
-            <div className="create-studio-block-title">
-              <strong>2. Background video</strong>
-              <small>{familyClips.length} clips · most over 1 minute</small>
-            </div>
             <div className="create-clip-grid" role="listbox" aria-label="Gameplay clips">
-              {familyClips.map((item) => (
-                <ClipCard key={item.id} clip={item} active={clipId === item.id} onSelect={() => setClipId(item.id)} />
-              ))}
+              {familyClips.map((item) => <ClipCard key={item.id} clip={item} active={clipId === item.id} onSelect={() => setClipId(item.id)} />)}
             </div>
-          </div>
+          </section>
 
-          <div className="create-studio-block">
-            <div className="create-studio-block-title">
-              <strong>3. Original hosts</strong>
-              <small>{mode === "debate" ? "Pick up to 2" : "Pick 1 narrator"}</small>
-            </div>
-            <div className="segmented-control" role="group" aria-label="Script mode">
-              <button type="button" className={mode === "debate" ? "active" : undefined} onClick={() => { setMode("debate"); setSelectedHostIds(["nova", "riff"]); }}>
-                Debate
-              </button>
-              <button type="button" className={mode === "story" ? "active" : undefined} onClick={() => { setMode("story"); setSelectedHostIds([selectedHostIds[0] ?? "nova"]); }}>
-                Story
-              </button>
+          <section className="create-v2-option-section" aria-labelledby="host-option-title">
+            <div className="create-v2-section-heading">
+              <div><h3 id="host-option-title">Original hosts and voices</h3><p>Select one narrator or two hosts. Every voice can be previewed.</p></div>
+              <div className="create-v2-mode" role="group" aria-label="Script mode">
+                <button type="button" className={mode === "story" ? "active" : undefined} aria-pressed={mode === "story"} onClick={() => { setMode("story"); setSelectedHostIds([selectedHostIds[0] ?? "nova"]); }}>Story</button>
+                <button type="button" className={mode === "debate" ? "active" : undefined} aria-pressed={mode === "debate"} onClick={() => { setMode("debate"); setSelectedHostIds(["nova", "riff"]); }}>Debate</button>
+              </div>
             </div>
             <div className="create-host-grid">
               {studioCharacters.map((host) => {
@@ -341,139 +353,61 @@ export function CreateStudio() {
                     <button type="button" className="create-host-select" onClick={() => toggleHost(host.id)} aria-pressed={active}>
                       <span className="create-host-swatch" style={{ background: host.color }} />
                       <strong>{host.name}</strong>
-                      <small>{host.tagline}</small>
+                      <small>{host.voicePreset}</small>
                     </button>
                     <button type="button" className="create-host-play" onClick={() => speakSample(host)} aria-label={`Preview ${host.name}`}>
-                      {playingVoiceId === host.id ? <Pause size={14} /> : <Play size={14} />}
+                      {playingVoiceId === host.id ? <Pause aria-hidden="true" size={14} /> : <Play aria-hidden="true" size={14} />}
                       <span>0:03</span>
                     </button>
                   </article>
                 );
               })}
             </div>
-          </div>
+          </section>
 
-          <div className="create-studio-block">
-            <div className="create-studio-block-title">
-              <strong>4. Script</strong>
-              <small>AI generate or write manually</small>
+          <section className="create-v2-option-section create-v2-export-settings" aria-labelledby="export-option-title">
+            <div className="create-v2-section-heading"><div><h3 id="export-option-title">Output settings</h3><p>Choose the final duration and caption treatment.</p></div></div>
+            <div>
+              <label>Duration<select value={duration} onChange={(event) => setDuration(Number(event.target.value))}><option value={15}>15 seconds</option><option value={30}>30 seconds</option><option value={45}>45 seconds</option><option value={60}>60 seconds</option></select></label>
+              <label>Captions<select value={captionStyle} onChange={(event) => setCaptionStyle(event.target.value)}><option>TikTok Classic</option><option>Bold Box</option><option>Study Clean</option><option>No captions</option></select></label>
             </div>
-            <label className="field-group">
-              <span>Topic / source</span>
-              <textarea value={topic} onChange={(event) => setTopic(event.target.value)} rows={2} placeholder="What should the short be about?" />
-            </label>
-            <div className="create-script-actions">
-              <button type="button" className="button-secondary compact" onClick={() => setScript(localScriptFromTopic(topic, mode, hosts))}>
-                <Type size={14} /> Local draft
-              </button>
-              <button type="button" className="button-primary compact" disabled={scriptBusy} onClick={() => void generateScriptWithAi()}>
-                {scriptBusy ? <LoaderCircle className="spin" size={14} /> : <WandSparkles size={14} />}
-                AI generate
-              </button>
-              <label className="create-duration">
-                Duration
-                <select value={duration} onChange={(event) => setDuration(Number(event.target.value))}>
-                  <option value={15}>15s</option>
-                  <option value={30}>30s</option>
-                  <option value={45}>45s</option>
-                  <option value={60}>60s</option>
-                </select>
-              </label>
-            </div>
-            <label className="field-group">
-              <span>Editable script</span>
-              <textarea
-                value={script}
-                onChange={(event) => setScript(event.target.value)}
-                rows={8}
-                placeholder={mode === "debate" ? "Nova: line\nRiff: line" : "Paste or generate narration…"}
-              />
-            </label>
-          </div>
+          </section>
+        </div>
 
-          <div className="create-studio-export">
-            {notice ? <p className="create-studio-notice" role="status">{notice}</p> : null}
-            <button type="button" className="button-primary generate-button" disabled={exportBusy} onClick={() => void createAndOpenEditor()}>
-              {exportBusy ? <LoaderCircle className="spin" size={18} /> : <Clapperboard size={18} />}
-              {exportBusy ? "Opening editor" : "Create & open editor"}
-              <span>{duration}s</span>
-            </button>
-            <p className="form-disclosure">
-              Path: gameplay loop + hosts + script → editor → generate voice → export MP4. Image generation stays a later asset step, not the default wait.
-            </p>
-          </div>
+        <div className="create-studio-export">
+          {notice ? <p className="create-studio-notice" role="status">{notice}</p> : null}
+          <button type="button" className="create-v2-generate" disabled={exportBusy} onClick={() => void createAndOpenEditor()}>
+            {exportBusy ? <LoaderCircle className="spin" size={18} /> : <WandSparkles aria-hidden="true" size={18} />}
+            {exportBusy ? "Opening editor" : "Create video"}
+          </button>
+          <p className="form-disclosure">Estimated cost is confirmed in the editor before voice generation.</p>
+        </div>
         </section>
 
-        <aside className="create-studio-preview" aria-label="Live preview">
-          <div className="create-preview-phone">
-            <div className="create-preview-stage" onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerLeave={onPointerUp}>
-              <video
-                ref={videoRef}
-                key={clip.id}
-                className="create-preview-video"
-                src={clip.videoSrc}
-                poster={clip.posterSrc}
-                muted
-                loop
-                playsInline
-                autoPlay
-              />
+        <aside className="create-v2-live" aria-label="Live preview">
+          <div className="create-v2-live-toolbar"><span><i aria-hidden="true" /> Live preview</span><span>{aspectRatio} · 720p</span></div>
+          <div className="create-v2-live-canvas">
+            <div className="create-preview-stage" data-aspect={aspectRatio} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerLeave={onPointerUp}>
+              <video ref={videoRef} key={clip.id} className="create-preview-video" src={clip.videoSrc} poster={clip.posterSrc} muted loop playsInline autoPlay />
               <div className="create-preview-scrim" />
-              <div
-                className="create-preview-hosts"
-                style={{ transform: `translate(${charOffset.x}px, ${charOffset.y}px)` }}
-                onPointerDown={(event) => onPointerDown("char", event)}
-              >
-                {(hosts.length ? hosts : studioCharacters.slice(0, 1)).map((host) => (
-                  <div key={host.id} className="create-preview-host-chip" style={{ borderColor: host.color }}>
-                    <span style={{ background: host.color }} />
-                    <strong>{host.name}</strong>
-                  </div>
-                ))}
+              <div className="create-preview-hosts" style={{ transform: `translate(${charOffset.x}px, ${charOffset.y}px)` }} onPointerDown={(event) => onPointerDown("char", event)}>
+                {(hosts.length ? hosts : studioCharacters.slice(0, 1)).map((host) => <div key={host.id} className="create-preview-host-chip" style={{ borderColor: host.color }}><span style={{ background: host.color }} /><strong>{host.name}</strong></div>)}
                 <small>Drag hosts</small>
               </div>
-              <div
-                className="create-preview-caption"
-                style={{ transform: `translate(${captionOffset.x}px, ${captionOffset.y}px)` }}
-                onPointerDown={(event) => onPointerDown("caption", event)}
-              >
-                {activeLine ? (
-                  <>
-                    <em style={{ color: activeLine.color }}>{activeLine.speaker}</em>
-                    <p>{activeLine.text}</p>
-                  </>
-                ) : (
-                  <p>Your script preview</p>
-                )}
+              <div className="create-preview-caption" style={{ transform: `translate(${captionOffset.x}px, ${captionOffset.y}px)` }} onPointerDown={(event) => onPointerDown("caption", event)}>
+                {activeLine ? <><em style={{ color: activeLine.color }}>{activeLine.speaker}</em><p>{activeLine.text}</p></> : <p>Your script preview</p>}
                 <small>Drag captions</small>
               </div>
-              <div className="create-preview-meta">
-                <span>{clip.name}</span>
-                <span>{Math.max(1, Math.floor(clip.durationSeconds / 60))}m+</span>
-              </div>
+              <div className="create-preview-meta"><span>{clip.name}</span><span>{duration}s</span></div>
             </div>
-            <div className="create-preview-footer">
-              <Check size={14} /> Live preview uses the selected loop. Export burns final captions after voice generation.
-            </div>
-            <dl className="create-preview-facts">
-              <div>
-                <dt>Background</dt>
-                <dd>{clip.name}</dd>
-              </div>
-              <div>
-                <dt>License</dt>
-                <dd>{clip.license}</dd>
-              </div>
-              <div>
-                <dt>Hosts</dt>
-                <dd>{hosts.map((host) => host.name).join(" · ") || "—"}</dd>
-              </div>
-              <div>
-                <dt>Source</dt>
-                <dd><a href={clip.sourceUrl} target="_blank" rel="noreferrer">Open attribution</a></dd>
-              </div>
-            </dl>
           </div>
+          <div className="create-v2-preview-copy"><Check aria-hidden="true" size={16} /><span><strong>Everything updates live</strong><small>Gameplay, hosts, script, captions and aspect ratio reflect the left-side settings.</small></span></div>
+          <dl className="create-v2-preview-facts">
+            <div><dt>Gameplay</dt><dd>{clip.name}</dd></div>
+            <div><dt>Hosts</dt><dd>{hosts.map((host) => host.name).join(" · ") || "—"}</dd></div>
+            <div><dt>Captions</dt><dd>{captionStyle}</dd></div>
+            <div><dt>Licence</dt><dd><a href={clip.sourceUrl} target="_blank" rel="noreferrer">{clip.license}</a></dd></div>
+          </dl>
         </aside>
       </div>
     </main>
@@ -482,9 +416,10 @@ export function CreateStudio() {
 
 function ClipCard({ clip, active, onSelect }: { clip: GameplayClip; active: boolean; onSelect: () => void }) {
   return (
-    <button type="button" className={`create-clip-card${active ? " active" : ""}`} onClick={onSelect} aria-pressed={active}>
+    <button type="button" role="option" className={`create-clip-card${active ? " active" : ""}`} onClick={onSelect} aria-selected={active}>
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src={clip.posterSrc} alt="" loading="lazy" />
+      {active ? <Check className="create-clip-check" aria-hidden="true" size={16} /> : null}
       <div>
         <strong>{clip.name}</strong>
         <span>{clip.description}</span>
