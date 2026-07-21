@@ -29,7 +29,7 @@ export const gameplayClips = [
     family: "subway",
     name: "Neon rails",
     description: "Bright rail runner footage with dense obstacle timing.",
-    videoSrc: "/gameplay/subway-neon.mp4",
+    videoSrc: "/api/gameplay/subway-neon/",
     posterSrc: "/gameplay/posters/subway-neon.png",
     durationSeconds: 60,
     startOffsetSeconds: 0,
@@ -41,7 +41,7 @@ export const gameplayClips = [
     family: "subway",
     name: "City sprint",
     description: "Classic city runner footage with a clear center lane.",
-    videoSrc: "/gameplay/subway-city.mp4",
+    videoSrc: "/api/gameplay/subway-city/",
     posterSrc: "/gameplay/posters/subway-city.png",
     durationSeconds: 60,
     startOffsetSeconds: 0,
@@ -53,7 +53,7 @@ export const gameplayClips = [
     family: "subway",
     name: "Lantern run",
     description: "A colorful city route with strong vertical composition.",
-    videoSrc: "/gameplay/subway-china.mp4",
+    videoSrc: "/api/gameplay/subway-china/",
     posterSrc: "/gameplay/posters/subway-china.png",
     durationSeconds: 60,
     startOffsetSeconds: 0,
@@ -65,7 +65,7 @@ export const gameplayClips = [
     family: "temple",
     name: "Cliff escape",
     description: "Temple runner footage with quick turns and drops.",
-    videoSrc: "/gameplay/temple-run-cliffs.mp4",
+    videoSrc: "/api/gameplay/temple-cliffs/",
     posterSrc: "/gameplay/posters/temple-run-cliffs.png",
     durationSeconds: 60,
     startOffsetSeconds: 0,
@@ -77,7 +77,7 @@ export const gameplayClips = [
     family: "temple",
     name: "Jungle chase",
     description: "Green jungle route with steady central movement.",
-    videoSrc: "/gameplay/temple-run-jungle.mp4",
+    videoSrc: "/api/gameplay/temple-jungle/",
     posterSrc: "/gameplay/posters/temple-run-jungle.png",
     durationSeconds: 60,
     startOffsetSeconds: 0,
@@ -89,7 +89,7 @@ export const gameplayClips = [
     family: "temple",
     name: "Ruins rush",
     description: "Warm stone ruins with strong obstacle contrast.",
-    videoSrc: "/gameplay/temple-run-ruins.mp4",
+    videoSrc: "/api/gameplay/temple-ruins/",
     posterSrc: "/gameplay/posters/temple-run-ruins.png",
     durationSeconds: 60,
     startOffsetSeconds: 0,
@@ -101,7 +101,7 @@ export const gameplayClips = [
     family: "trackmania",
     name: "Snow circuit",
     description: "Cold high-speed circuit with a clean horizon line.",
-    videoSrc: "/gameplay/trackmania-snow.mp4",
+    videoSrc: "/api/gameplay/trackmania-snow/",
     posterSrc: "/gameplay/posters/trackmania-snow.png",
     durationSeconds: 60,
     startOffsetSeconds: 0,
@@ -113,7 +113,7 @@ export const gameplayClips = [
     family: "trackmania",
     name: "Stadium line",
     description: "White stadium track with rapid forward motion.",
-    videoSrc: "/gameplay/trackmania-stadium.mp4",
+    videoSrc: "/api/gameplay/trackmania-stadium/",
     posterSrc: "/gameplay/posters/trackmania-stadium.png",
     durationSeconds: 60,
     startOffsetSeconds: 0,
@@ -251,6 +251,10 @@ export function clipsForFamily(family: GameFamily) {
   return gameplayClips.filter((clip) => clip.family === family);
 }
 
+export function findGameplayClip(id: string | null | undefined) {
+  return gameplayClips.find((clip) => clip.id === id);
+}
+
 export function getGameplayClip(id: string | null | undefined) {
-  return gameplayClips.find((clip) => clip.id === id) ?? gameplayClips[0];
+  return findGameplayClip(id) ?? gameplayClips[0];
 }
