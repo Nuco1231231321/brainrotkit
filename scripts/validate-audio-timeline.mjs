@@ -10,7 +10,7 @@ const compiled = ts.transpileModule(source, {
   },
 }).outputText;
 const timelineModule = await import(`data:text/javascript;base64,${Buffer.from(compiled).toString("base64")}`);
-const { buildFallbackTimeline, extractProviderTimeline, normalizeAudioTimeline } = timelineModule;
+const { buildFallbackTimeline, extractProviderTimeline, normalizeAudioTimeline, timelineMatchesText } = timelineModule;
 
 const elevenLabs = extractProviderTimeline({
   output: {
@@ -60,4 +60,7 @@ assert.equal(fallback.source, "fallback");
 assert.ok(Math.abs(fallback.durationSeconds - 2.4) < 0.001);
 assert.ok(Math.abs(fallback.words.at(-1).end - 2.4) < 0.001);
 
-console.log("Audio timeline fixtures passed: ElevenLabs alignment, Kie words, milliseconds and fallback.");
+assert.equal(timelineMatchesText(kieWords, "Wait, what?"), true);
+assert.equal(timelineMatchesText(kieWords, "A completely unrelated caption line"), false);
+
+console.log("Audio timeline fixtures passed: provider alignment, text matching and fallback timing.");

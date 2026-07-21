@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Download open gameplay clips for offline use.
+# Download the gameplay presets used by the homepage and browser compositor.
 # Usage (with local proxy):
 #   export https_proxy=http://127.0.0.1:7890 http_proxy=http://127.0.0.1:7890
 #   bash scripts/download-gameplay-assets.sh
@@ -10,29 +10,43 @@ OUT="$ROOT/public/gameplay"
 mkdir -p "$OUT"
 
 urls=(
-  "mineclone.webm|https://upload.wikimedia.org/wikipedia/commons/9/92/MineClone2_-_Release_0.84_-_The_Very_Nice_Release.webm"
-  "supertux.webm|https://upload.wikimedia.org/wikipedia/commons/2/24/Gameplay_of_SuperTux_%288_Minutes%29.webm"
-  "tux-ingo.webm|https://upload.wikimedia.org/wikipedia/commons/d/de/Tux_Racer_gameplay_%28Ingo%27s_Speedway%29.webm"
-  "tux-daggers.webm|https://upload.wikimedia.org/wikipedia/commons/3/33/Tux_Racer_gameplay_%28Path_of_Daggers%29.webm"
-  "zero-ad.webm|https://upload.wikimedia.org/wikipedia/commons/b/bc/0_A.D._-_Gameplay-Test_15052019_Full-HD.webm"
-  "red-eclipse-1.webm|https://upload.wikimedia.org/wikipedia/commons/3/34/Red_Eclipse_1%2C5_Gameplay_1.webm"
-  "red-eclipse-2.webm|https://upload.wikimedia.org/wikipedia/commons/c/c6/Red_Eclipse_1%2C5_Gameplay_2.webm"
-  "fez.webm|https://upload.wikimedia.org/wikipedia/commons/4/47/FEZ_trial_gameplay_HD.webm"
-  "gigalomania.webm|https://upload.wikimedia.org/wikipedia/commons/6/60/Gigalomania_-_Gameplay_%28PC%E2%A7%B8UHD%29_%28kgLUlxtxfh8%29.webm"
-  "physics.webm|https://upload.wikimedia.org/wikipedia/commons/d/d9/Fantastic_Contraption_raw_gameplay_highlights.webm"
-  "scp.webm|https://upload.wikimedia.org/wikipedia/commons/7/7e/SCP-_Secret_Laboratory_-_Tutorial_playthrough_-_The_basics.webm"
+  "subway-neon.mp4|61370531|16015174|60|https://cdn.revid.ai/subway_surfers/LOW_RES/2.mp4"
+  "subway-city.mp4|67368882|12606777|60|https://cdn.revid.ai/subway_surfers/LOW_RES/1.mp4"
+  "subway-china.mp4|17984216|17984216|0|https://cdn.revid.ai/subway_surfers/china_surfer_low.mp4"
+  "temple-run-cliffs.mp4|20116707|20116707|0|https://cdn.revid.ai/backgrounds/tr/clip4_lowres.mp4"
+  "temple-run-jungle.mp4|20064273|20064273|0|https://cdn.revid.ai/backgrounds/tr/clip3_lowres.mp4"
+  "temple-run-ruins.mp4|21953570|21953570|0|https://cdn.revid.ai/backgrounds/tr/clip2_lowres.mp4"
+  "trackmania-snow.mp4|10435050|10435050|0|https://cdn.revid.ai/backgrounds/trackmania/video_lowres_4.mp4"
+  "trackmania-stadium.mp4|10752402|10752402|0|https://cdn.revid.ai/backgrounds/trackmania/video_lowres_2.mp4"
 )
 
 for item in "${urls[@]}"; do
   name="${item%%|*}"
-  url="${item#*|}"
+  remainder="${item#*|}"
+  source_size="${remainder%%|*}"
+  remainder="${remainder#*|}"
+  prepared_size="${remainder%%|*}"
+  remainder="${remainder#*|}"
+  trim_seconds="${remainder%%|*}"
+  url="${remainder#*|}"
   dest="$OUT/$name"
-  if [[ -f "$dest" ]]; then
+  current_size=0
+  if [[ -f "$dest" ]]; then current_size="$(wc -c < "$dest" | tr -d ' ')"; fi
+  if [[ "$current_size" == "$prepared_size" ]]; then
     echo "skip $name"
     continue
   fi
-  echo "download $name"
-  curl -L --fail --retry 3 -o "$dest" "$url"
+  source="${TMPDIR:-/tmp}/brainrotkit-$name.source"
+  source_current=0
+  if [[ -f "$source" ]]; then source_current="$(wc -c < "$source" | tr -d ' ')"; fi
+  echo "resume $name source ($source_current/$source_size bytes)"
+  curl -L --fail --retry 5 --continue-at - -o "$source" "$url"
+  if [[ "$trim_seconds" == "0" ]]; then
+    mv "$source" "$dest"
+  else
+    avconvert --source "$source" --preset PresetPassthrough --output "$dest.trimmed" --duration "$trim_seconds" --replace
+    mv "$dest.trimmed" "$dest"
+  fi
 done
 
 echo "Done. Files in $OUT"

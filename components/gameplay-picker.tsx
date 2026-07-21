@@ -18,7 +18,7 @@ export function GameplayPicker({
   return (
     <section className="gameplay-picker" aria-labelledby="gameplay-picker-title">
       <div className="gameplay-picker-heading">
-        <div><strong id="gameplay-picker-title">Real gameplay background</strong><span>10 open/licensed recordings with at least one minute of source footage. The editor loops and crops them for vertical video.</span></div>
+        <div><strong id="gameplay-picker-title">Gameplay background</strong><span>Eight downloaded presets are available for reliable preview, looping and vertical export.</span></div>
         <small>No AI charge</small>
       </div>
       <div className="gameplay-picker-layout">
@@ -41,7 +41,7 @@ export function GameplayPicker({
         </div>
       </div>
       <a className="gameplay-picker-source" href={gameplayBackgrounds.find((background) => background.id === selected)?.sourceUrl} target="_blank" rel="noreferrer">
-        View source and licence for the selected recording
+        Open the source file for the selected preset
       </a>
     </section>
   );

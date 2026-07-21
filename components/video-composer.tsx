@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { BufferTarget, CanvasSource, AudioBufferSource, Mp4OutputFormat, Output } from "mediabunny";
 import { drawGameplayFrame } from "@/components/gameplay-renderer";
 import { getGameplayBackground } from "@/lib/gameplay-backgrounds";
-import { buildFallbackTimeline, normalizeAudioTimeline } from "@/lib/audio-timeline";
+import { buildFallbackTimeline, normalizeAudioTimeline, timelineMatchesText } from "@/lib/audio-timeline";
 import type { BrainrotScript } from "@/lib/kie";
 import type { ProjectDetail } from "@/lib/projects";
 
@@ -59,14 +59,18 @@ function buildCaptionWords(
     const duration = segmentDurations[index] ?? 0;
     const dialogue = script.dialogue[index];
     const providerTimeline = normalizeAudioTimeline(segment.timeline);
-    const timeline = providerTimeline?.words.length
+    const spokenText = dialogue?.text ?? script.narration;
+    const matchedProviderTimeline = providerTimeline && timelineMatchesText(providerTimeline, spokenText)
       ? providerTimeline
+      : null;
+    const timeline = matchedProviderTimeline?.words.length
+      ? matchedProviderTimeline
       : buildFallbackTimeline(dialogue?.text ?? script.narration, duration || durationSeconds);
     const speaker = script.speakers.find((candidate) => candidate.id === segment.speakerId)
       ?? script.speakers.find((candidate) => candidate.id === dialogue?.speakerId)
       ?? script.speakers[0];
-    const timelineScale = providerTimeline && duration > 0 && providerTimeline.durationSeconds > 0
-      ? duration / providerTimeline.durationSeconds
+    const timelineScale = matchedProviderTimeline && duration > 0 && matchedProviderTimeline.durationSeconds > 0
+      ? duration / matchedProviderTimeline.durationSeconds
       : 1;
     timeline.words.forEach((word) => {
       const start = cursor + word.start * timelineScale;

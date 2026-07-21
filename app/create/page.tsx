@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { CreateStudio } from "@/components/create-studio";
+import { redirect } from "next/navigation";
 
 export const metadata: Metadata = {
   title: "Create a Brainrot video",
@@ -7,6 +7,6 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-export default function CreatePage() {
-  return <CreateStudio />;
+export default function CreateRedirectPage() {
+  redirect("/");
 }

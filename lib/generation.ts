@@ -71,7 +71,16 @@ function mapVoiceName(preset: string) {
     "Milano Rush": "Puck",
     "Opera Max": "Fenrir",
     "Narrator Zero": "Charon",
+    "Calm Narrator": "Charon",
     "Soft Study": "Zephyr",
+    "Dublin Spark": "Aoede",
+    "Radio Fred": "Algenib",
+    "Warm Radio": "Algenib",
+    "Cape Story": "Kore",
+    "Delhi Drive": "Achird",
+    "Midnight Whisper": "Despina",
+    "Quiet Story": "Despina",
+    "Italian Spark": "Leda",
   }[preset] ?? "Puck";
 }
 

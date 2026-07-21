@@ -125,6 +125,34 @@ export function normalizeAudioTimeline(value: unknown): AudioTimeline | null {
   };
 }
 
+function comparableWords(text: string) {
+  return text
+    .normalize("NFKD")
+    .toLowerCase()
+    .split(/\s+/)
+    .map((word) => word.replace(/[^a-z0-9']/g, ""))
+    .filter(Boolean);
+}
+
+export function timelineMatchesText(timeline: AudioTimeline, text: string) {
+  const expected = comparableWords(text);
+  const actual = timeline.words.flatMap((item) => comparableWords(item.word));
+  if (!expected.length || !actual.length) return false;
+
+  const lengthRatio = actual.length / expected.length;
+  if (lengthRatio < 0.65 || lengthRatio > 1.35) return false;
+
+  let expectedIndex = 0;
+  let orderedMatches = 0;
+  for (const word of actual) {
+    const matchIndex = expected.indexOf(word, expectedIndex);
+    if (matchIndex < 0 || matchIndex > expectedIndex + 2) continue;
+    orderedMatches += 1;
+    expectedIndex = matchIndex + 1;
+  }
+  return orderedMatches / Math.max(expected.length, actual.length) >= 0.7;
+}
+
 export function buildFallbackTimeline(text: string, durationSeconds: number): AudioTimeline {
   const words = text.replace(/\s+/g, " ").trim().split(" ").filter(Boolean);
   const weights = words.map((word) => {
