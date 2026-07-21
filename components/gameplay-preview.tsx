@@ -8,10 +8,12 @@ export function GameplayPreview({
   backgroundId,
   caption = "Your story starts here",
   compact = false,
+  showCaption = true,
 }: {
   backgroundId: GameplayBackgroundId | string;
   caption?: string;
   compact?: boolean;
+  showCaption?: boolean;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -32,6 +34,7 @@ export function GameplayPreview({
     if (loopSrc) {
       if (!video) {
         video = document.createElement("video");
+        video.crossOrigin = "anonymous";
         video.muted = true;
         video.loop = true;
         video.playsInline = true;
@@ -53,10 +56,19 @@ export function GameplayPreview({
         const drawWidth = video.videoWidth * scale;
         const drawHeight = video.videoHeight * scale;
         context.drawImage(video, (canvas.width - drawWidth) / 2, (canvas.height - drawHeight) / 2, drawWidth, drawHeight);
-      } else {
+      } else if (!loopSrc) {
         drawGameplayFrame(context, backgroundId, elapsed, canvas.width, canvas.height);
+      } else {
+        // Do not show the old procedural placeholder while real footage is loading.
+        context.fillStyle = "#0b0e12";
+        context.fillRect(0, 0, canvas.width, canvas.height);
+        context.fillStyle = "rgba(255,255,255,.72)";
+        context.font = '600 13px Arial, sans-serif';
+        context.textAlign = "center";
+        context.textBaseline = "middle";
+        context.fillText("Loading gameplay…", canvas.width / 2, canvas.height / 2);
       }
-      const words = caption.trim().split(/\s+/).filter(Boolean).slice(0, 5);
+      const words = showCaption ? caption.trim().split(/\s+/).filter(Boolean).slice(0, 5) : [];
       if (words.length) {
         const activeWord = Math.floor(elapsed * 2.6) % words.length;
         const fontSize = compact ? 26 : 32;
@@ -89,7 +101,7 @@ export function GameplayPreview({
       window.cancelAnimationFrame(frame);
       video?.pause();
     };
-  }, [backgroundId, caption, compact]);
+  }, [backgroundId, caption, compact, showCaption]);
 
   return <canvas ref={canvasRef} className={compact ? "gameplay-preview compact" : "gameplay-preview"} width={360} height={640} role="img" aria-label="Animated gameplay background preview" />;
 }

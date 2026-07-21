@@ -8,6 +8,7 @@ import { requestAuthDialog } from "@/components/auth-dialog";
 import { Logo } from "@/components/logo";
 
 const createLinks = [
+  { href: "/create", label: "Create studio" },
   { href: "/", label: "AI Video" },
   { href: "/italian-brainrot-generator", label: "Italian Brainrot" },
   { href: "/pdf-to-brainrot", label: "PDF to Brainrot" },

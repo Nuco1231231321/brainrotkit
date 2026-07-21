@@ -333,6 +333,7 @@ export function VideoComposer({
   aspectRatio,
   onProjectSaved,
   autoStart = false,
+  loopVideoUrl = null,
 }: {
   projectId: string;
   title: string;
@@ -347,6 +348,7 @@ export function VideoComposer({
   aspectRatio: string;
   onProjectSaved: (project: ProjectDetail) => void;
   autoStart?: boolean;
+  loopVideoUrl?: string | null;
 }) {
   const [state, setState] = useState<ExportState>("idle");
   const [progress, setProgress] = useState(0);
@@ -435,7 +437,9 @@ export function VideoComposer({
       motionVideo.crossOrigin = "anonymous";
       motionVideo.preload = "auto";
     }
-    const loopSource = getGameplayBackground(backgroundId).videoSrc;
+    const loopSource = motionSource
+      ? null
+      : (loopVideoUrl || getGameplayBackground(backgroundId).videoSrc);
     const loopVideo = !motionSource && loopSource ? document.createElement("video") : null;
     if (loopVideo && loopSource) {
       loopVideo.src = loopSource;
