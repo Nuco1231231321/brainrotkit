@@ -29,5 +29,8 @@ export const publicRoutes = [
   "/status",
 ];
 
-export const allowIndexing =
-  (process.env.NEXT_PUBLIC_ALLOW_INDEXING as string | undefined) === "true";
+const indexingPreference = (process.env.NEXT_PUBLIC_ALLOW_INDEXING as string | undefined)?.trim().toLowerCase();
+
+export const allowIndexing = indexingPreference === undefined
+  ? process.env.NODE_ENV === "production"
+  : indexingPreference === "true";
