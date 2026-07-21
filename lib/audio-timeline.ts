@@ -10,6 +10,58 @@ export type AudioTimeline = {
   source: "provider" | "fallback";
 };
 
+export type AudibleRange = {
+  startSeconds: number;
+  endSeconds: number;
+};
+
+export function findAudibleRange(channels: readonly Float32Array[], sampleRate: number): AudibleRange {
+  const sampleLength = Math.max(...channels.map((channel) => channel.length), 0);
+  if (!Number.isFinite(sampleRate) || sampleRate <= 0 || sampleLength === 0) {
+    return { startSeconds: 0, endSeconds: 0 };
+  }
+
+  const windowSize = Math.max(1, Math.round(sampleRate * 0.02));
+  const rmsThreshold = 0.004;
+  const isAudible = (windowStart: number) => {
+    const windowEnd = Math.min(sampleLength, windowStart + windowSize);
+    let sumSquares = 0;
+    let sampleCount = 0;
+    for (const channel of channels) {
+      const end = Math.min(windowEnd, channel.length);
+      for (let index = windowStart; index < end; index += 1) {
+        const sample = channel[index];
+        sumSquares += sample * sample;
+        sampleCount += 1;
+      }
+    }
+    return sampleCount > 0 && Math.sqrt(sumSquares / sampleCount) >= rmsThreshold;
+  };
+
+  let firstAudibleSample = -1;
+  for (let start = 0; start < sampleLength; start += windowSize) {
+    if (!isAudible(start)) continue;
+    firstAudibleSample = start;
+    break;
+  }
+  if (firstAudibleSample < 0) {
+    const durationSeconds = sampleLength / sampleRate;
+    return { startSeconds: 0, endSeconds: durationSeconds };
+  }
+
+  let lastAudibleSample = sampleLength;
+  for (let start = Math.max(0, sampleLength - windowSize); start >= 0; start -= windowSize) {
+    if (!isAudible(start)) continue;
+    lastAudibleSample = Math.min(sampleLength, start + windowSize);
+    break;
+  }
+
+  return {
+    startSeconds: Math.max(0, firstAudibleSample / sampleRate - 0.04),
+    endSeconds: Math.min(sampleLength / sampleRate, lastAudibleSample / sampleRate + 0.12),
+  };
+}
+
 function numberValue(value: unknown) {
   const number = typeof value === "number" ? value : Number(value);
   return Number.isFinite(number) ? number : null;

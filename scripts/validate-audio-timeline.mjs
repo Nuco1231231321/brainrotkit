@@ -10,7 +10,7 @@ const compiled = ts.transpileModule(source, {
   },
 }).outputText;
 const timelineModule = await import(`data:text/javascript;base64,${Buffer.from(compiled).toString("base64")}`);
-const { buildFallbackTimeline, extractProviderTimeline, normalizeAudioTimeline, timelineMatchesText } = timelineModule;
+const { buildFallbackTimeline, extractProviderTimeline, findAudibleRange, normalizeAudioTimeline, timelineMatchesText } = timelineModule;
 
 const elevenLabs = extractProviderTimeline({
   output: {
@@ -63,4 +63,11 @@ assert.ok(Math.abs(fallback.words.at(-1).end - 2.4) < 0.001);
 assert.equal(timelineMatchesText(kieWords, "Wait, what?"), true);
 assert.equal(timelineMatchesText(kieWords, "A completely unrelated caption line"), false);
 
-console.log("Audio timeline fixtures passed: provider alignment, text matching and fallback timing.");
+const sampleRate = 1_000;
+const paddedSpeech = new Float32Array(2_000);
+paddedSpeech.fill(0.08, 400, 1_250);
+const audibleRange = findAudibleRange([paddedSpeech], sampleRate);
+assert.ok(audibleRange.startSeconds >= 0.34 && audibleRange.startSeconds <= 0.4);
+assert.ok(audibleRange.endSeconds >= 1.25 && audibleRange.endSeconds <= 1.4);
+
+console.log("Audio timeline fixtures passed: provider alignment, audible speech bounds, text matching and fallback timing.");

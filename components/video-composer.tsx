@@ -4,7 +4,7 @@ import { Check, CloudUpload, Download, FileDown, Film, LoaderCircle, TriangleAle
 import { useEffect, useRef, useState } from "react";
 import { BufferTarget, CanvasSource, AudioBufferSource, Mp4OutputFormat, Output } from "mediabunny";
 import { getGameplayBackground } from "@/lib/gameplay-backgrounds";
-import { buildFallbackTimeline, normalizeAudioTimeline, timelineMatchesText } from "@/lib/audio-timeline";
+import { buildFallbackTimeline, findAudibleRange, normalizeAudioTimeline, timelineMatchesText, type AudibleRange } from "@/lib/audio-timeline";
 import type { BrainrotScript } from "@/lib/kie";
 import type { ProjectDetail } from "@/lib/projects";
 
@@ -37,6 +37,7 @@ function buildCaptionWords(
   script: BrainrotScript,
   audioSegments: ProjectDetail["audioSegments"],
   segmentDurations: number[],
+  segmentAudibleRanges: AudibleRange[],
   durationSeconds: number,
 ): CaptionWord[] {
   if (!audioSegments.length) {
@@ -56,6 +57,10 @@ function buildCaptionWords(
   let cursor = 0;
   audioSegments.forEach((segment, index) => {
     const duration = segmentDurations[index] ?? 0;
+    const audibleRange = segmentAudibleRanges[index] ?? { startSeconds: 0, endSeconds: duration };
+    const speechStart = Math.max(0, Math.min(duration, audibleRange.startSeconds));
+    const speechEnd = Math.max(speechStart, Math.min(duration, audibleRange.endSeconds));
+    const speechDuration = Math.max(0.05, speechEnd - speechStart);
     const dialogue = script.dialogue[index];
     const providerTimeline = normalizeAudioTimeline(segment.timeline);
     const spokenText = dialogue?.text ?? script.narration;
@@ -64,16 +69,22 @@ function buildCaptionWords(
       : null;
     const timeline = matchedProviderTimeline?.words.length
       ? matchedProviderTimeline
-      : buildFallbackTimeline(dialogue?.text ?? script.narration, duration || durationSeconds);
+      : buildFallbackTimeline(dialogue?.text ?? script.narration, speechDuration || durationSeconds);
     const speaker = script.speakers.find((candidate) => candidate.id === segment.speakerId)
       ?? script.speakers.find((candidate) => candidate.id === dialogue?.speakerId)
       ?? script.speakers[0];
-    const timelineScale = matchedProviderTimeline && duration > 0 && matchedProviderTimeline.durationSeconds > 0
-      ? duration / matchedProviderTimeline.durationSeconds
+    const providerStart = matchedProviderTimeline?.words[0]?.start ?? 0;
+    const providerSpan = matchedProviderTimeline
+      ? Math.max(0.05, matchedProviderTimeline.durationSeconds - providerStart)
+      : timeline.durationSeconds;
+    const timelineScale = matchedProviderTimeline && speechDuration > 0
+      ? speechDuration / providerSpan
       : 1;
     timeline.words.forEach((word) => {
-      const start = cursor + word.start * timelineScale;
-      const end = cursor + Math.min(duration || word.end, word.end * timelineScale);
+      const relativeStart = Math.max(0, word.start - providerStart);
+      const relativeEnd = Math.max(relativeStart, word.end - providerStart);
+      const start = cursor + speechStart + relativeStart * timelineScale;
+      const end = cursor + speechStart + Math.min(speechDuration, relativeEnd * timelineScale);
       if (end <= start) return;
       words.push({
         text: word.word,
@@ -472,9 +483,13 @@ export function VideoComposer({
       await decodeContext.close();
 
       const segmentDurations = audioBuffers.map((buffer) => buffer.duration);
+      const segmentAudibleRanges = audioBuffers.map((buffer) => findAudibleRange(
+        Array.from({ length: buffer.numberOfChannels }, (_, channel) => buffer.getChannelData(channel)),
+        buffer.sampleRate,
+      ));
       const totalAudioDuration = segmentDurations.reduce((sum, duration) => sum + duration, 0);
       const renderDuration = Math.max(durationSeconds, Math.ceil(totalAudioDuration * 10) / 10);
-      const captionWords = buildCaptionWords(script, segments, segmentDurations, renderDuration);
+      const captionWords = buildCaptionWords(script, segments, segmentDurations, segmentAudibleRanges, renderDuration);
       const subtitleCues = makeSubtitleCues(captionWords);
       const mixedAudio = await mixAudioBuffers(audioBuffers);
 
@@ -487,7 +502,7 @@ export function VideoComposer({
       output.addVideoTrack(videoSource, { frameRate: 30 });
       output.addAudioTrack(audioSource);
       setState("recording");
-      setMessage(`Composing ${renderDuration.toFixed(1)}s offline at ${dimensions.width}×${dimensions.height}…`);
+      setMessage(`Composing ${renderDuration.toFixed(1)}s in real time at ${dimensions.width}×${dimensions.height}…`);
       await output.start();
       await audioSource.add(mixedAudio);
 
