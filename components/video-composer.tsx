@@ -3,7 +3,6 @@
 import { Check, CloudUpload, Download, FileDown, Film, LoaderCircle, TriangleAlert } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { BufferTarget, CanvasSource, AudioBufferSource, Mp4OutputFormat, Output } from "mediabunny";
-import { drawGameplayFrame } from "@/components/gameplay-renderer";
 import { getGameplayBackground } from "@/lib/gameplay-backgrounds";
 import { buildFallbackTimeline, normalizeAudioTimeline, timelineMatchesText } from "@/lib/audio-timeline";
 import type { BrainrotScript } from "@/lib/kie";
@@ -287,30 +286,22 @@ function drawComposedFrame(
     elapsed: number;
     width: number;
     height: number;
-    backgroundId: string;
     captionStyle: string;
     captionWords: CaptionWord[];
     motionVideo: HTMLVideoElement | null;
     loopVideo: HTMLVideoElement | null;
-    loopStartOffsetSeconds: number;
     poster: HTMLImageElement | null;
   },
 ) {
-  const { elapsed, width, height, backgroundId, captionStyle, captionWords, motionVideo, loopVideo, loopStartOffsetSeconds, poster } = options;
+  const { elapsed, width, height, captionStyle, captionWords, motionVideo, loopVideo, poster } = options;
   if (motionVideo && motionVideo.readyState >= 2) {
     drawCover(context, motionVideo, 0, 0, width, height);
   } else if (loopVideo && loopVideo.readyState >= 2) {
-    if (loopVideo.duration && Number.isFinite(loopVideo.duration) && loopVideo.duration > 0) {
-      const t = (loopStartOffsetSeconds + elapsed) % loopVideo.duration;
-      if (Math.abs(loopVideo.currentTime - t) > 0.08) {
-        try { loopVideo.currentTime = t; } catch { /* seek may fail mid-decode */ }
-      }
-    }
     drawCover(context, loopVideo, 0, 0, width, height);
   } else if (poster) {
     drawCover(context, poster, 0, 0, width, height);
   } else {
-    drawGameplayFrame(context, backgroundId, elapsed, width, height);
+    throw new Error("The selected gameplay video is not ready for export.");
   }
 
   const readabilityGradient = context.createLinearGradient(0, height * 0.58, 0, height);
@@ -501,26 +492,31 @@ export function VideoComposer({
       await audioSource.add(mixedAudio);
 
       if (motionVideo) {
-        try { motionVideo.currentTime = 0; await motionVideo.play(); } catch { /* optional */ }
+        motionVideo.currentTime = 0;
+        await motionVideo.play();
       }
       if (loopVideo) {
-        try { loopVideo.currentTime = loopStartOffsetSeconds; await loopVideo.play(); } catch { /* optional */ }
+        loopVideo.currentTime = loopStartOffsetSeconds;
+        await loopVideo.play();
       }
 
       const frameRate = 30;
       const totalFrames = Math.ceil(renderDuration * frameRate);
+      const videoStartedAt = performance.now();
       for (let frameIndex = 0; frameIndex < totalFrames; frameIndex += 1) {
         const elapsed = frameIndex / frameRate;
+        if (motionVideo || loopVideo) {
+          const delay = videoStartedAt + elapsed * 1_000 - performance.now();
+          if (delay > 1) await new Promise<void>((resolve) => window.setTimeout(resolve, delay));
+        }
         drawComposedFrame(context, {
           elapsed,
           width: dimensions.width,
           height: dimensions.height,
-          backgroundId,
           captionStyle,
           captionWords,
           motionVideo,
           loopVideo,
-          loopStartOffsetSeconds,
           poster: image,
         });
         const preview = previewRef.current?.getContext("2d");
@@ -528,7 +524,7 @@ export function VideoComposer({
           preview.drawImage(canvas, 0, 0, previewRef.current.width, previewRef.current.height);
         }
         setProgress(Math.min(100, ((frameIndex + 1) / totalFrames) * 100));
-        if (frameIndex % 8 === 0) await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+        if (!motionVideo && !loopVideo && frameIndex % 8 === 0) await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
         await videoSource.add(elapsed, 1 / frameRate);
       }
 
@@ -569,7 +565,7 @@ export function VideoComposer({
         <Film aria-hidden="true" size={18} />
       </div>
       <p className="video-composer-copy">
-        Offline compositor (faster than real-time): mixes every voice segment, draws {motionVideoUrl ? "AI motion" : getGameplayBackground(backgroundId).videoSrc ? "loop footage" : "gameplay motion"}, and burns stroke karaoke captions at {dims.width}×{dims.height}. No extra AI credits.
+        Browser compositor: mixes every voice segment, draws the selected {motionVideoUrl ? "AI motion" : "gameplay video"} in real time, and burns stroke karaoke captions at {dims.width}×{dims.height}. No extra AI credits.
       </p>
       <canvas
         ref={previewRef}
@@ -582,7 +578,7 @@ export function VideoComposer({
         <div className="video-composer-progress" role="status" aria-live="polite">
           <div>
             <LoaderCircle aria-hidden="true" size={16} />
-            <strong>{Math.round(progress)}% · Offline export</strong>
+            <strong>{Math.round(progress)}% · Rendering video</strong>
             <span>{message}</span>
           </div>
           <progress max="100" value={progress} aria-label="Export progress" />
@@ -633,7 +629,7 @@ export function VideoComposer({
           <Film aria-hidden="true" size={16} /> Export another copy
         </button>
       )}
-      <small className="video-composer-note">Offline encode is typically much faster than watching the clip. Keep this tab open until the MP4 finishes.</small>
+      <small className="video-composer-note">Video export runs in real time so every selected gameplay frame is preserved. Keep this tab open until the MP4 finishes.</small>
     </section>
   );
 }
